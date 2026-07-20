@@ -1,51 +1,59 @@
 # main.py
-import json
+from decimal import Decimal
 from analysis.models import ProductRecord
 from analysis.etl import ETLProcessor
+from analysis.database import DatabaseLoader
 from utils.logger import logger
 
 def main():
-    # Initialize the centralized ETL Engine
+    # 1. Initialize our ETL Engine and Database Pipeline Components
     processor = ETLProcessor()
+    
+    # Adjust connection string credentials to match your local setup
+    db_loader = DatabaseLoader("postgresql://postgres:postgres@localhost:5432/market_intelligence")
 
-    # Simulated raw data payload extracted from a Playwright browser instance
+    # 2. Emulate an active raw scraper production stream using Decimals
     raw_scraped_items = [
         ProductRecord(
-            product_name="iPhone 16", 
-            price=899.0, 
-            original_price=1200.0, 
+            product_name="iPhone 16 Pro Max", 
+            price=Decimal("1199.00"), 
+            original_price=Decimal("1400.00"), 
             currency="USD", 
-            competitor="Amazon",
-            rating=4.7,
-            review_count=142
+            competitor="Amazon Global",
+            rating=4.8,
+            review_count=940
         ),
         ProductRecord(
-            product_name="Invalid Price Item", 
-            price=-5.0, 
+            product_name="MacBook Air M3", 
+            price=Decimal("999.00"), 
+            original_price=Decimal("999.00"), 
             currency="USD", 
-            competitor="eBay Store"
+            competitor="BestBuy US",
+            rating=4.6,
+            review_count=210
         )
     ]
 
-    print("--- Running ETL Pipeline Flow ---")
-    enriched_results = []
+    # 3. Process, Clean, and Enrich Records
+    processed_batch = []
+    print("\n--- Running End-to-End ETL Processing Pipeline ---")
     
     for item in raw_scraped_items:
         try:
-            # The first item will trigger the API lookup, the subsequent ones reuse the cache!
             enriched_item = processor.enrich(item)
-            print(f"✅ Success: {enriched_item.product_name} | Price KES: {enriched_item.price_kes}")
-            
-            # Convert the enriched dataclass object to a dict for previewing
-            enriched_results.append(enriched_item.__dict__)
-            
+            processed_batch.append(enriched_item)
+            print(f"✅ Processed: {enriched_item.product_name} | Price: {enriched_item.price_kes} KES | ID: {enriched_item.product_id[:8]}...")
         except ValueError as val_err:
-            # Catches Step 10 validation failures before they hit dashboards/databases
-            logger.error(f"❌ Skipping bad record: {val_err}")
+            logger.error(f"❌ Record Rejected: {val_err}")
 
-    print("\n--- Processed Output Sample ---")
-    if enriched_results:
-        print(json.dumps(enriched_results[0], indent=4))
+    # 4. Save safely to the PostgreSQL layer using batch transactions
+    if processed_batch:
+        print("\n--- Initiating Transactional Database Loading ---")
+        try:
+            db_loader.upsert_batch(processed_batch)
+            print("🚀 Pipeline Execution Completed Successfully!")
+        except Exception as db_err:
+            print(f"💥 Critical Pipeline Halt: {db_err}")
 
 if __name__ == "__main__":
     main()

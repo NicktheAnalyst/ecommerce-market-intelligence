@@ -1,54 +1,64 @@
+# analysis/etl.py
+from decimal import Decimal, ROUND_HALF_UP
 from analysis.models import ProductRecord
 from analysis.validators import DataValidator
 from api.exchange_rate import ExchangeRateClient
-from api.shipping import ShippingClient
-from api.category import CategoryClient
 from api.cache import cache
 from utils.logger import logger
 
 class ETLProcessor:
     def __init__(self):
         self.exchange_client = ExchangeRateClient()
-        self.shipping_client = ShippingClient()
-        self.category_client = CategoryClient()
 
     def _get_rates(self) -> dict:
-        """Fetches from API with a fallback matrix if the external endpoint fails."""
         if "rates" not in cache:
             rates = self.exchange_client.get_rates()
-            # Step 12: Fallback handling if API is down or unavailable
             if not rates:
-                logger.warning("Exchange rate API unavailable! Utilizing fallback rate (1.0).")
+                logger.warning("Exchange API down. Using default USD/KES baseline mappings.")
                 rates = {"USD": 1.0, "KES": 150.0}
-            cache["rates"] = rates
+            # Convert rates to Decimals for exact arithmetic
+            cache["rates"] = {k: Decimal(str(v)) for k, v in rates.items()}
         return cache["rates"]
 
+    def _determine_category(self, name: str) -> str:
+        """Mentor Recommendation: Internal rules map instead of network calls."""
+        name_lower = name.lower()
+        if "iphone" in name_lower or "galaxy" in name_lower or "phone" in name_lower:
+            return "Smartphones"
+        if "macbook" in name_lower or "laptop" in name_lower:
+            return "Laptops"
+        return "Electronics"
+
+    def _calculate_mock_shipping(self, category: str) -> Decimal:
+        """Mentor Recommendation: Reproducible developer mock calculation rules."""
+        shipping_table = {
+            "Smartphones": Decimal("15.00"),
+            "Laptops": Decimal("35.00"),
+            "Electronics": Decimal("20.00")
+        }
+        return shipping_table.get(category, Decimal("10.00"))
+
     def enrich(self, product: ProductRecord) -> ProductRecord:
-        """Executes the full pipeline: Validation -> Transformation -> Enrichment."""
-        # Step 10: Run structural gate validation checks first
+        # Step 10: Validation
         DataValidator.validate(product)
 
-        # Step 9 & 12: Business logic calculation and API failure handling
+        # Step 6 & 12: Currency Transformation using Decimals
         rates = self._get_rates()
-        
-        # Determine exchange rates cleanly
         base_currency = "KES"
-        target_rate = float(rates.get(base_currency, 150.0))
-        source_rate = float(rates.get(product.currency, 1.0))
         
-        product.exchange_rate = round(target_rate / source_rate, 4)
-        product.price_kes = round(product.price * product.exchange_rate, 2)
+        target_rate = rates.get(base_currency, Decimal("150.0"))
+        source_rate = rates.get(product.currency, Decimal("1.0"))
+        
+        product.exchange_rate = (target_rate / source_rate).quantize(Decimal("1.0000"))
+        product.price_kes = (product.price * product.exchange_rate).quantize(Decimal("1.00"), rounding=ROUND_HALF_UP)
 
-        # Calculate discount rules safely
+        # Step 7: Precision Discount Math
         if product.original_price and product.original_price > product.price:
             discount = ((product.original_price - product.price) / product.original_price) * 100
-            product.discount_percentage = int(round(discount))
+            product.discount_percentage = int(discount.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
-        # Enforce fallbacks for downstream shipping and categorization modules
-        raw_shipping = self.shipping_client.get_shipping_cost("Kenya")
-        product.shipping_cost = raw_shipping if raw_shipping is not None else 0.0
-
-        raw_category = self.category_client.get_category(product.product_name)
-        product.category = raw_category if raw_category else "Unclassified"
+        # Internal Lookups
+        product.category = self._determine_category(product.product_name)
+        product.shipping_cost = self._calculate_mock_shipping(product.category)
 
         return product
