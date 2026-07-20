@@ -1,41 +1,29 @@
+# run_pipeline.py
 import pandas as pd
-from analysis.analytics_engine import AnalyticsEngine
+from analysis.analytics_service import AnalyticsService
 from analysis.exporter import Exporter
 
 def main():
-    print("🚀 Initializing end-to-end data pipeline extraction...")
+    print("🚀 Initializing Enhanced Analytics Pipeline...")
     
-    # 1. Spin up the processing layers (Extracts via SQL -> loads into Pandas)
-    engine = AnalyticsEngine()
+    # Run decoupled service coordinator
+    service = AnalyticsService()
+    payload = service.run_all_analyses()
+    
     exporter = Exporter()
     
-    print("📊 Executing analytical engine business logic transformations...")
-    # 2. Extract calculations
-    price_changes = engine.analyze_price_changes()
-    inventory_risk = engine.check_inventory_risk()
-    discount_opportunities = engine.get_discount_opportunities()
-    competitor_ranking = engine.get_competitor_ranking()
-    kpi_dict = engine.get_kpi_summary()
+    # Export flat files for backup/Power BI local file source integration
+    print("💾 Archiving snapshots to CSV filesystem...")
+    exporter.save_to_csv(payload["inventory_risk"], "inventory_risk.csv")
+    exporter.save_to_csv(payload["discount_opportunities"], "discount_report.csv")
     
-    # Format structural data objects neatly for export targets
-    kpis_df = pd.DataFrame([kpi_dict])
+    # Store clean historical representations back into SQL Database summary tables
+    print("🗄️ Writing analytical updates straight to Database Summary Tables...")
+    exporter.save_to_summary_table(payload["competitor_ranking"], "daily_competitor_summary")
+    exporter.save_to_summary_table(payload["price_changes"], "daily_price_delta_summary")
+    exporter.save_to_summary_table(pd.DataFrame([payload["kpis"]]), "daily_kpi_summary")
     
-    # Reset tracking index fields on ranking metrics to output clean tabular columns
-    competitor_ranking_df = competitor_ranking.reset_index()
-    competitor_ranking_df.columns = ["Competitor", "Avg Price"]
-    
-    print("💾 Exporting clean output layers to target directory 'data/analytics/'...")
-    # 3. Save datasets down cleanly to their specific target dashboard locations
-    exporter.save(competitor_ranking_df, "competitor_ranking.csv")
-    exporter.save(inventory_risk, "inventory_risk.csv")
-    exporter.save(discount_opportunities, "discount_report.csv")
-    exporter.save(kpis_df, "kpis.csv")
-    
-    # Optional handler for dynamic name mapping matching output requirements
-    price_changes.rename(columns={"today_price": "cheapest_price"}, inplace=True, errors="ignore")
-    exporter.save(price_changes, "cheapest_competitors.csv")
-    
-    print("✨ Pipeline ran successfully. Data assets ready for Power BI consumption.")
+    print("✨ Pipeline Complete. Data quality validated, stored, and exported.")
 
 if __name__ == "__main__":
     main()
