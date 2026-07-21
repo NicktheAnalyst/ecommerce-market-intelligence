@@ -1,25 +1,16 @@
 from database.connection import SessionLocal
-from database.models import Competitor
+from database.models import Competitor, Product, Price
 
 
 def create_competitor(name, website, country):
     session = SessionLocal()
-
-    competitor = Competitor(
-        name=name,
-        website=website,
-        country=country
-    )
-
+    competitor = Competitor(name=name, website=website, country=country)
     session.add(competitor)
     session.commit()
     session.refresh(competitor)
     session.close()
-
     return competitor
 
-from database.models import Product, Price
-from database.base import SessionLocal  
 
 def create_product(product_name, brand, category, sku):
     session = SessionLocal()
@@ -34,6 +25,7 @@ def create_product(product_name, brand, category, sku):
     session.refresh(product)
     session.close()
     return product
+
 
 def create_price(product_id, competitor_id, price, currency, discount):
     session = SessionLocal()

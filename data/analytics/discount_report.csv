@@ -1,0 +1,4 @@
+id_x,product_id,competitor_id,price,currency,discount,captured_at,id_y,product_name,brand,category,sku
+3,2,2,110000.0,KES,15.0,2026-07-21 13:41:32.199094,2,Galaxy S24,Samsung,Smartphones,SAM-S24
+2,1,1,135000.0,KES,10.0,2026-07-21 13:41:32.197044,1,iPhone 16,Apple,Smartphones,APL-IP16
+1,1,1,140000.0,KES,0.0,2026-07-21 13:41:32.193441,1,iPhone 16,Apple,Smartphones,APL-IP16

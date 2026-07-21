@@ -47,7 +47,7 @@ class AnalyticsEngine:
         return merged
 
     def analyze_price_changes(self) -> pd.DataFrame:
-        sorted_prices = self.prices.sort_values(by=["product_id", "date"])
+        sorted_prices = self.prices.sort_values(by=["product_id", "captured_at"])
         latest_two = sorted_prices.groupby("product_id").tail(2).copy()
         latest_two["yesterday_price"] = latest_two.groupby("product_id")["price"].shift(1)
         
@@ -58,12 +58,11 @@ class AnalyticsEngine:
         return analysis_df
 
     def check_inventory_risk(self) -> pd.DataFrame:
-        sorted_snapshots = self.snapshots.sort_values(by=["product_id", "date"])
-        is_out = (sorted_snapshots["status"].str.lower() == "out").astype(int)
-        consecutive_groups = (is_out != is_out.shift()).cumsum()
-        
-        sorted_snapshots["days_out"] = sorted_snapshots.groupby(["product_id", consecutive_groups])["status"].transform("count")
-        sorted_snapshots.loc[sorted_snapshots["status"].str.lower() != "out", "days_out"] = 0
+        sorted_snapshots = self.snapshots.sort_values(by=["product_id", "capture_date"])
+        is_out = (sorted_snapshots["stock_status"].str.lower() == "out").astype(int)
+        consecutive_groups = (is_out != is_out.shift()).cumsum()        
+        sorted_snapshots["days_out"] = sorted_snapshots.groupby(["product_id", consecutive_groups])["stock_status"].transform("count")
+        sorted_snapshots.loc[sorted_snapshots["stock_status"].str.lower() != "out", "days_out"] = 0
         
         risk_df = sorted_snapshots.groupby("product_id")["days_out"].max().reset_index()
         
@@ -80,8 +79,13 @@ class AnalyticsEngine:
         return merged.sort_values(by="discount", ascending=False)
 
     def get_competitor_ranking(self) -> pd.DataFrame:
-        comp_merged = self.prices.merge(self.competitors, on="product_id", suffixes=('', '_comp'))
-        ranking = comp_merged.groupby("competitor")["price"].mean().sort_values().reset_index()
+        comp_merged = self.prices.merge(
+    self.competitors, 
+    left_on="competitor_id", 
+    right_on="id", 
+    suffixes=('', '_comp')
+)
+        ranking = comp_merged.groupby("name")["price"].mean().sort_values().reset_index()
         ranking.columns = ["competitor", "avg_price"]
         return ranking
 

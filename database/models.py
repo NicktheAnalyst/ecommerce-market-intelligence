@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     String,
@@ -104,7 +104,7 @@ class Price(Base):
 
     captured_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc)
     )
 
     product = relationship(
@@ -146,7 +146,7 @@ class DailySnapshot(Base):
 
     capture_date: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc)
     )
 
     product = relationship(
