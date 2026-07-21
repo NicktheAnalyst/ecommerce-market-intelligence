@@ -37,7 +37,7 @@ Ensure you have **Python 3.11+** and **PostgreSQL** installed and running locall
 Clone the repository and set up a virtual environment:
 
 ```bash
-git clone [https://github.com/YOUR_USERNAME/ecommerce-market-intelligence.git](https://github.com/YOUR_USERNAME/ecommerce-market-intelligence.git)
+git clone https://github.com/YOUR_USERNAME/ecommerce-market-intelligence.git
 cd ecommerce-market-intelligence
 
 python -m venv .venv
